@@ -6,6 +6,7 @@ from config_project.constants import ENVIRONMENT
 
 db_config = ContainerDatabaseConfig() if ENVIRONMENT in ['production', 'container'] else LocalDatabaseConfig()
 
+print(db_config.user_name, db_config.password)
 # Создание соединения с базой данных
 engine = create_engine(db_config.get_database_uri())
 

@@ -3,11 +3,11 @@ from loguru import logger
 from sqlalchemy import inspect
 
 from src.database.engine import engine
-from src.database.models import User, Devices, Payment, Base
-from config_project.constants import dotenv_path, MEDIA_DIR
+from src.database.models import Users, Videos, VideoSnapshots, Creators, Base
+from config_project.constants import dotenv_path
 
 from config_project.log_config import setup_logger
-from src.vpn_service.utils import xray_client_authentication
+
 
 
 class ConfigProject:
@@ -16,7 +16,7 @@ class ConfigProject:
         """Проверка подключения к БД и существования таблицы в БД"""
 
         # Задаем список таблиц для проверки
-        tables = [User,  Devices, Payment]  # Используем классы моделей
+        tables = [Users, Videos, VideoSnapshots, Creators]  # Используем классы моделей
         try:
             with engine.connect() as connection:
                 inspector = inspect(connection)
@@ -79,10 +79,13 @@ class ConfigProject:
                 except Exception as e:
                     logger.exception(f'Ошибка на шаге "{name}": {e}')
                     return False
-            logger.info('\nПроверка доступности серверов:')
-            xray_client_authentication()
-            logger.info('Окончено\n')
             return True
         except Exception:
             logger.exception(f'Ошибка предварительной проверки')
             return False
+
+
+if '__main__' == __name__:
+    obj = ConfigProject()
+    obj.check_db_and_tables()
+

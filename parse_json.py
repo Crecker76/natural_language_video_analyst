@@ -3,11 +3,14 @@ from pprint import pprint
 
 
 
-# Открываем и читаем JSON-файл
-with open('videos.json', 'r', encoding='utf-8') as file:
-    data_videos = json.load(file)
-
-# Получаем целиком все данные
-data_videos = data_videos['videos']
+def read_json(name_json_file:str):
+    # Открываем и читаем JSON-файл
+    with open(name_json_file, 'r', encoding='utf-8') as file:
+        return json.load(file)
 
 
+if __name__ == '__main__':
+    data_videos = read_json(name_json_file='videos.json')
+    data_videos = data_videos['videos']
+    for video in data_videos:
+        print(video['creator_id'])
