@@ -1,35 +1,21 @@
 from typing import Type, Mapping, Any, Optional, List, TypeVar
 
 from sqlalchemy import Column, update
-from sqlalchemy.orm import joinedload
 from loguru import logger
 
 from src.database.engine import Session
-from src.database.models import Base, Payment, User, Devices
+from src.database.models import Base
 from src.database.db_selectors import handle_sqlalchemy_error
 
 T = TypeVar('T', bound=Base)
 
-# Маппинг модели на её связи для joinedload
-joinedload_map = {
-    Payment: [Payment.user, Payment.device],
-    User: [
-        User.devices,
-        User.payments,
-        User.referrals,  # 👈 Все, кого он пригласил
-    ],
-    Devices: [Devices.user, Devices.payments],
-    # добавь свои модели и связи
-}
-
 
 @handle_sqlalchemy_error
-def create_object(model: Type[T], expunge: bool = True, **kwargs: Any) -> T:
+def create_object(model: Type[T], **kwargs: Any) -> T:
     """
     Создание объекта.
 
     :param model: Модель таблицы в БД
-    :param expunge: Удалять ли объект из сессии перед возвратом
     :param kwargs: параметры для создания объекта
     :return: созданный объект или исключение
     """
@@ -42,19 +28,6 @@ def create_object(model: Type[T], expunge: bool = True, **kwargs: Any) -> T:
         session.add(obj)
         session.commit()
         session.refresh(obj)
-
-        if model in joinedload_map:
-            query = session.query(model)
-            for relation in joinedload_map[model]:
-                query = query.options(joinedload(relation))
-
-            pk_key = model.__mapper__.primary_key[0].key
-            pk_value = getattr(obj, pk_key)
-
-            obj = query.filter(getattr(model, pk_key) == pk_value).one()
-
-        if expunge:
-            session.expunge(obj)
 
         logger.info(f'Объект модели-{model.__name__} создан с подгрузкой связей.')
         return obj
@@ -103,10 +76,7 @@ def get_all_objects_model(model: Type[T]) -> Optional[List[T]]:
     :return: Список объектов модели
     """
     with Session() as session:
-        relationships = joinedload_map.get(model, [])
-        result = session.query(model).options(
-            *[joinedload(rel) for rel in relationships]
-        ).all()
+        result = session.query(model).all()
         for obj in result:
             session.expunge(obj)
         return result
@@ -125,9 +95,7 @@ def get_by_attribute(model: Type[T], attr_name: str, attr_value: Any) -> Optiona
     """
     with Session() as session:
         attr: Column = getattr(model, attr_name)
-        relationships = joinedload_map.get(model, [])
-        db_obj = session.query(model).options(
-            *[joinedload(rel) for rel in relationships]).filter(attr == attr_value).first()
+        db_obj = session.query(model).filter(attr == attr_value).first()
         if not db_obj:
             logger.error(f'Объекта в БД не найдено модель-{model.__name__} - {attr_name}: {attr_value}')
             return None

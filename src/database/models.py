@@ -1,144 +1,107 @@
+import uuid
+
+from sqlalchemy.orm import registry, Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey, Index, func, String, DateTime
+from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 from uuid import uuid4
 
-
-from sqlalchemy import Column, DateTime, Integer, String, ForeignKey, BOOLEAN, JSON, BIGINT, func, Text
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, declarative_base, backref
-
-
-Base = declarative_base()
-
-
-class Users(Base):
-    """
-    Таблица пользователя для бота
-    """
-
-    __tablename__ = 'users'
-    user_id: UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    date_registration: datetime = Column(DateTime, default=func.now())
-    telegram_id: int = Column(BIGINT)
-    name: str = Column(String, default='unknown')
+# Новый способ объявления Base в SQLAlchemy 2.0
+reg = registry()
+Base = reg.generate_base()
 
 
 class Creators(Base):
-    """Данные создателей контента"""
-
     __tablename__ = 'creators'
-    creator_id: UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    date_registration: datetime = Column(DateTime, default=func.now())
-    name: str = Column(String, default='unknown')
 
-    # Обратная связь: список всех видео этого креатора
-    videos = relationship("Videos", back_populates="creator", cascade="all, delete-orphan")
+    creator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    date_registration: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String, default='unknown', nullable=False)
+
+    # Связь один-ко-многим
+    videos: Mapped[list["Videos"]] = relationship(
+        "Videos",
+        back_populates="creator",
+        cascade="all, delete-orphan"
+    )
 
 
 class Videos(Base):
-    """
-    Итоговая статистика по ролику
-
-    id — идентификатор видео (UUID4);
-    creator_id — идентификатор креатора;
-    video_created_at — дата и время публикации видео;
-    views_count — финальное количество просмотров;
-    likes_count — финальное количество лайков;
-    comments_count — финальное количество комментариев;
-    reports_count — финальное количество жалоб;
-    служебные поля:
-        created_at - время создания статистики
-        updated_at. - последнее время обновления статистики
-    """
     __tablename__ = 'videos'
 
-    id: UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-
-    # Внешний ключ на creator_id
-    creator_id: UUID = Column(
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    creator_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey('creators.creator_id', ondelete='CASCADE'),
+        nullable=False
+    )
+    video_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    views_count: Mapped[int] = mapped_column(default=0, server_default='0', nullable=False)
+    likes_count: Mapped[int] = mapped_column(default=0, server_default='0', nullable=False)
+    comments_count: Mapped[int] = mapped_column(default=0, server_default='0', nullable=False)
+    reports_count: Mapped[int] = mapped_column(default=0, server_default='0', nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    # Обратные связи
+    creator: Mapped["Creators"] = relationship("Creators", back_populates="videos")
+    snapshots: Mapped[list["VideoSnapshots"]] = relationship(
+        "VideoSnapshots",
+        back_populates="video",
+        cascade="all, delete-orphan",
+        order_by="desc(VideoSnapshots.created_at)"
+    )
+
+
+class VideoSnapshots(Base):
+    __tablename__ = 'video_snapshots'
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    video_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('videos.id', ondelete='CASCADE'),
         nullable=False,
         index=True
     )
 
-    video_created_at: datetime = Column(
+    views_count: Mapped[int] = mapped_column(nullable=False)
+    likes_count: Mapped[int] = mapped_column(nullable=False)
+    comments_count: Mapped[int] = mapped_column(nullable=False)
+    reports_count: Mapped[int] = mapped_column(nullable=False)
+
+    delta_views_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    delta_likes_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    delta_comments_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    delta_reports_count: Mapped[int] = mapped_column(default=0, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=func.now()
-    )
-    views_count: int = Column(Integer, nullable=False, default=0)
-    likes_count: int = Column(Integer, nullable=False, default=0)
-    comments_count: int = Column(Integer, nullable=False, default=0)
-    reports_count: int = Column(Integer, nullable=False, default=0)
-
-    created_at: datetime = Column(
-        DateTime(timezone=True),
-        default=func.now()
-    )
-    updated_at: datetime = Column(
-        DateTime(timezone=True),
-        default=func.now()
-    )
-
-    # Обратная связь на создателя
-    creator = relationship("Creators", back_populates="videos")
-
-
-class VideoSnapshots(Base):
-    """
-    Почасовые замеры по ролику
-
-    id — идентификатор снапшота;
-    video_id — ссылка на соответствующее видео;
-    текущие значения: views_count, likes_count, comments_count, reports_count на момент замера;
-    приращения: delta_views_count, delta_likes_count, delta_comments_count, delta_reports_count — насколько изменилось значение с прошлого замера;
-    created_at — время замера (раз в час);
-    updated_at — служебное поле.
-
-    """
-
-    __tablename__ = 'video_snapshots'
-
-    id: UUID = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid4
-    )
-
-    # связь с видео
-    video_id: UUID = Column(
-        UUID(as_uuid=True),
-        ForeignKey('videos.id', ondelete='CASCADE'),
+        server_default=func.now(),
         nullable=False,
-        index=True  # важно для быстрых запросов по видео
+        index=True
     )
-
-    # Текущие абсолютные значения на момент замера
-    views_count: int = Column(Integer, nullable=False)
-    likes_count: int = Column(Integer, nullable=False)
-    comments_count: int = Column(Integer, nullable=False)
-    reports_count: int = Column(Integer, nullable=False)
-
-    # Приращения с предыдущего снапшота (дельты)
-    delta_views_count: int = Column(Integer, nullable=False, default=0)
-    delta_likes_count: int = Column(Integer, nullable=False, default=0)
-    delta_comments_count: int = Column(Integer, nullable=False, default=0)
-    delta_reports_count: int = Column(Integer, nullable=False, default=0)
-
-    # Время создания снапшота (момент замера, раз в час)
-    created_at: datetime = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
-        default=func.now(),
-        index=True  # полезно для запросов по времени
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
     )
 
-    # Служебное поле — время последнего обновления записи (на случай корректировок)
-    updated_at: datetime = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=func.now(),
-        onupdate=func.now()
-    )
-
-    # Обратная связь к видео
-    video = relationship("Videos", back_populates="snapshots")
+    video: Mapped["Videos"] = relationship("Videos", back_populates="snapshots")
