@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15  # Образ PostgresSQL
+    container_name: wpn_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${NAME_DB}
+      POSTGRES_USER: ${USER_NAME_DB}
+      POSTGRES_PASSWORD: ${PASSWORD_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # Хранение данных
+    networks:
+      - app_network
+  # Контейнера с Pg_admin
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "8080:80"
+    networks:
+      - app_network
+    depends_on:
+      - db  # Исправлено на db
+  bot:
+    build:
+      context: .  # Указываем, что Dockerfile находится в корне проекта
+    container_name: container_bot
+    restart: always
+    env_file:
+      - .env  # Используем переменные окружения
+    depends_on:
+      - db
+    networks:
+      - app_network
+    working_dir: /VPN_Bot # Устанавливаем рабочую директорию
+    volumes:
+        - .:/VPN_Bot  # Монтируем текущую директорию в контейнер
+    command: python start_project.py
+
+volumes:
+  pgdata:  # Для хранения данных PostgreSQL
+
+networks:
+  app_network:
+    driver: bridge
