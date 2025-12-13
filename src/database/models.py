@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy.orm import registry, Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Index, func, String, DateTime
+from sqlalchemy import ForeignKey, Index, func, String, DateTime, Column, BIGINT
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 from uuid import uuid4
@@ -9,6 +9,16 @@ from uuid import uuid4
 # Новый способ объявления Base в SQLAlchemy 2.0
 reg = registry()
 Base = reg.generate_base()
+
+
+class Users(Base):
+    """Таблица пользователей для бота"""
+
+    __tablename__ = 'users'
+    user_id: UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    date_registration: datetime = Column(DateTime, default=func.now())
+    telegram_id: int = Column(BIGINT)
+    name: str = Column(String, default='unknown')
 
 
 class Creators(Base):

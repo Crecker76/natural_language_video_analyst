@@ -34,6 +34,7 @@ if __name__ == '__main__':
     data_videos = data_videos['videos']
     for video in data_videos:
         for snapshot in video['snapshots']:
+            pass
             # create_object(
             #     model=VideoSnapshots,
             #     id=snapshot['id'],
