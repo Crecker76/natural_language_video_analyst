@@ -28,10 +28,6 @@ def direct_sql_requests(sql_query:str):
     """Прямые SQL запросы к БД"""
 
     try:
-        # Защита от вредоносных инъекций
-        query_lower = sql_query.lower()
-        if any(word in query_lower for word in ["drop", "delete", "update", "insert", "alter", "create", "truncate"]):
-            return 0
         sql_query = re.sub(r'^```sql|```$', '', sql_query, flags=re.IGNORECASE).strip()
         with Session() as session:
             result = session.execute(text(sql_query))

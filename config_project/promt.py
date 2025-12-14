@@ -41,32 +41,66 @@ SQL_GENERATION_PROMPT = """
 
 Правила генерации SQL:
 - Всегда возвращай ТОЛЬКО чистый SQL-запрос без объяснений, кавычек, markdown и т.п.
-- Запрос должен возвращать ровно одно число (используй SELECT COUNT(*), SUM(), COALESCE() при необходимости).
-- Для дат используй ::date или диапазоны с >= и <= (учитывай время, если нужно).
-- Если дата не указана — анализируй за всё время.
-- Для прироста за конкретный день используй delta_* поля из video_snapshots и фильтр по created_at::date.
-- Для количества видео за период — фильтр по video_created_at.
-- Используй COALESCE(..., 0) для SUM, чтобы не возвращать NULL.
+- Запрос должен возвращать ровно одно число.
+- Для диапазонов дат ("с 1 по 5 ноября включительно") используй >= начало AND < (конец + 1 день).
+- Используй COALESCE(..., 0) где необходимо.
+- Все даты/времена обрабатывай как timestamptz (добавляй +00 если нужно).
+
+КРИТИЧЕСКИ ВАЖНОЕ ПРАВИЛО ДЛЯ РАСЧЁТА ПРИРОСТА ПРОСМОТРОВ ЗА ВРЕМЕННОЙ ИНТЕРВАЛ:
+
+Когда вопрос звучит как "на сколько просмотров выросли видео в промежутке с X до Y", "с 10:00 до 15:00" и т.п.:
+- Прирост за этот период — это разница между абсолютным значением views_count на момент последнего снапшота ≤ Y (конец интервала включительно)
+  и абсолютным значением views_count на момент последнего снапшота ≤ X (начало интервала включительно).
+- Это точнее всего отражает реальный прирост просмотров за указанный промежуток, независимо от того, есть ли снапшоты точно в момент X или Y.
+- НЕ суммируй delta_views_count по снапшотам внутри интервала — это может дать неверный результат, если нет снапшота ровно в X или Y.
+- Используй CTE или подзапросы для нахождения последнего снапшота ≤ начала и ≤ конца для каждого video_id.
+- Затем вычисляй SUM(end_views - start_views) по всем видео креатора.
+- Если у видео нет снапшота до начала интервала — его прирост не учитывается (или можно считать от 0, но по умолчанию не учитывать).
+- Используй FULL OUTER JOIN на случай, если у какого-то видео есть только стартовый или только конечный снапшот.
+
+Пример правильного запроса для вопроса:
+
 
 Примеры:
+Вопрос: "На сколько просмотров суммарно выросли все видео креатора с id <creator_id> в промежутке с 10:00 до 15:00 28 ноября 2025 года?"
+
+SQL:
+WITH bounds AS (
+  SELECT '2025-11-28 10:00:00+00'::timestamptz AS start_time,
+         '2025-11-28 15:00:00+00'::timestamptz AS end_time
+),
+start_snap AS (
+  SELECT vs.video_id, vs.views_count AS start_views
+  FROM video_snapshots vs
+  JOIN videos v ON vs.video_id = v.id
+  CROSS JOIN bounds b
+  WHERE v.creator_id = <creator_id>
+    AND vs.created_at <= b.start_time
+    AND vs.created_at = (SELECT MAX(created_at) FROM video_snapshots vs2 WHERE vs2.video_id = vs.video_id AND vs2.created_at <= b.start_time)
+),
+end_snap AS (
+  SELECT vs.video_id, vs.views_count AS end_views
+  FROM video_snapshots vs
+  JOIN videos v ON vs.video_id = v.id
+  CROSS JOIN bounds b
+  WHERE v.creator_id = <creator_id>
+    AND vs.created_at <= b.end_time
+    AND vs.created_at = (SELECT MAX(created_at) FROM video_snapshots vs2 WHERE vs2.video_id = vs.video_id AND vs2.created_at <= b.end_time)
+)
+SELECT COALESCE(SUM(e.end_views - s.start_views), 0)
+FROM start_snap s
+FULL OUTER JOIN end_snap e USING (video_id);
 
 Вопрос: Сколько всего видео есть в системе?
 SQL: SELECT COUNT(*) FROM videos;
 
-Вопрос: Сколько видео у креатора с id ecd8a4e4-1f24-4b97-a944-35d17078ce7c вышло с 1 ноября 2025 по 5 ноября 2025 включительно?
-SQL: SELECT COUNT(*) FROM videos WHERE creator_id = 'ecd8a4e4-1f24-4b97-a944-35d17078ce7c' AND video_created_at >= '2025-11-01' AND video_created_at < '2025-11-06';
+Вопрос: Сколько видео у креатора с id <creator_id> вышло с 1 ноября по 5 ноября включительно?
+SQL: SELECT COUNT(*) FROM videos WHERE creator_id = '<creator_id>' AND video_created_at >= 'YYYY-11-01' AND video_created_at < 'YYYY-11-06';
 
-Вопрос: Сколько видео набрало больше 100000 просмотров за всё время?
-SQL: SELECT COUNT(*) FROM videos WHERE views_count > 100000;
-
-Вопрос: На сколько просмотров в сумме выросли все видео 28 ноября 2025?
-SQL: SELECT COALESCE(SUM(delta_views_count), 0) FROM video_snapshots WHERE created_at::date = '2025-11-28';
-
-Вопрос: Сколько разных видео получали новые просмотры 27 ноября 2025?
-SQL: SELECT COUNT(DISTINCT video_id) FROM video_snapshots WHERE delta_views_count > 0 AND created_at::date = '2025-11-27';
-
-Вопрос: Сколько видео опубликовал креатор с именем "Алексей Про"?
-SQL: SELECT COUNT(*) FROM videos v JOIN creators c ON v.creator_id = c.creator_id WHERE c.name = 'Алексей Про';
+Вопрос: На сколько просмотров в сумме выросли все видео 28 ноября?
+SQL: SELECT COALESCE(SUM(vs2.views_count - vs1.views_count), 0)
+FROM (SELECT video_id, MAX(views_count) AS views_count FROM video_snapshots WHERE created_at::date = 'YYYY-11-28' GROUP BY video_id) vs2
+LEFT JOIN (SELECT video_id, MAX(views_count) AS views_count FROM video_snapshots WHERE created_at::date < 'YYYY-11-28' GROUP BY video_id) vs1 USING (video_id);
 
 Теперь вопрос: {user_question}
 

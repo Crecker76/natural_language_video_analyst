@@ -18,17 +18,19 @@ def generate_sql(question_from_user: str) -> str:
 
     :return answer - сгенерированный SQL запрос от неиронки
     """
+    print('questioN:',question_from_user)
 
-    # prompt = SQL_GENERATION_PROMPT.format(user_question=question_from_user)
+    prompt = SQL_GENERATION_PROMPT.format(user_question=question_from_user)
     messages = [
-        ChatCompletionSystemMessageParam(role="system", content=SQL_GENERATION_PROMPT),
+        ChatCompletionSystemMessageParam(role="system", content=prompt),
         ChatCompletionUserMessageParam(role="user", content=question_from_user),
     ]
 
     chat_completion = client.chat.completions.create(
         messages=messages,
-        model="llama-3.3-70b-versatile",
+        model='openai/gpt-oss-120b' # model="llama-3.3-70b-versatile",
     )
     answer = chat_completion.choices[0].message.content
+    print('ОТВЕт AI:',answer)
     return answer
 

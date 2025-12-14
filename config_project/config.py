@@ -3,7 +3,7 @@ from loguru import logger
 from sqlalchemy import inspect
 
 from src.database.engine import engine
-from src.database.models import Users, Videos, VideoSnapshots, Creators, Base
+from src.database.models import  Videos, VideoSnapshots, Creators, Base
 from config_project.constants import dotenv_path
 
 from config_project.log_config import setup_logger
@@ -16,7 +16,7 @@ class ConfigProject:
         """Проверка подключения к БД и существования таблицы в БД"""
 
         # Задаем список таблиц для проверки
-        tables = [Users, Videos, VideoSnapshots, Creators]  # Используем классы моделей
+        tables = [Videos, VideoSnapshots, Creators]  # Используем классы моделей
         try:
             with engine.connect() as connection:
                 inspector = inspect(connection)

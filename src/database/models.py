@@ -11,16 +11,6 @@ reg = registry()
 Base = reg.generate_base()
 
 
-class Users(Base):
-    """Таблица пользователей для бота"""
-
-    __tablename__ = 'users'
-    user_id: UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    date_registration: datetime = Column(DateTime, default=func.now())
-    telegram_id: int = Column(BIGINT)
-    name: str = Column(String, default='unknown')
-
-
 class Creators(Base):
     __tablename__ = 'creators'
 
