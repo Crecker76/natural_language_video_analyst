@@ -26,13 +26,16 @@ def handle_sqlalchemy_error(func):
 @handle_sqlalchemy_error
 def direct_sql_requests(sql_query:str):
     """Прямые SQL запросы к БД"""
-    # TODo добавить защиту для БД от вредоносных запросов
 
     try:
+        # Защита от вредоносных инъекций
+        query_lower = sql_query.lower()
+        if any(word in query_lower for word in ["drop", "delete", "update", "insert", "alter", "create", "truncate"]):
+            return 0
         sql_query = re.sub(r'^```sql|```$', '', sql_query, flags=re.IGNORECASE).strip()
         with Session() as session:
             result = session.execute(text(sql_query))
             scalar_result = result.scalar()
             return scalar_result
     except Exception:
-        pass
+        logger.exception('Ошибка при sql запросе')
