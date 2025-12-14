@@ -33,13 +33,6 @@ def direct_sql_requests(sql_query:str):
         with Session() as session:
             result = session.execute(text(sql_query))
             scalar_result = result.scalar()
-            print(scalar_result)
+            return scalar_result
     except Exception:
         pass
-
-if __name__ == '__main__':
-    from src.api_open_ai.main import generate_sql
-
-    query = generate_sql(question_from_user='Сколько видео у креатора с id aca1061a9d324ecf8c3fa2bb32d7be63 вышло с 1 ноября 2025 по 5 ноября 2025 включительно?')
-    print(query)
-    direct_sql_requests(sql_query=query)

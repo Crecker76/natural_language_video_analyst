@@ -35,8 +35,8 @@ if __name__ == '__main__':
             logger.error('Ошибка предварительной проверки системы')
             exit(1)
         logger.info('Проверка проекта прошла успешно')
-        # # Запуск проекта
-        # run(start_project())
+        # Запуск проекта
+        run(start_project())
     except KeyboardInterrupt:
         logger.error('Остановка программы с клавиатуры')
         logger.info("Program stopped by user. Shutting down gracefully.\n\n")

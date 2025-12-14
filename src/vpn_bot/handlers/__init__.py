@@ -1,3 +1,4 @@
-from src.vpn_bot.handlers.user_handlers import user_router
+from .handlers import router as handlers_router
 
-__all__ = ["user_router"]
+
+__all__ = ['handlers_router']
