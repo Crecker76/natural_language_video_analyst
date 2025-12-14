@@ -6,7 +6,7 @@ from src.database.method_db import create_object
 from src.database.models import Creators, Videos, VideoSnapshots
 from sqlalchemy.orm import configure_mappers
 
-# Это нужно, чтобы SQLAlchemy "увидел" все relationship пре создание объектов
+# чтобы SQLAlchemy "увидел" все relationship пре создание объектов
 configure_mappers()
 
 

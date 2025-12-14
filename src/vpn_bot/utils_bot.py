@@ -7,5 +7,4 @@ async def get_answer(question:str):
         question_from_user=question
     )
     result = direct_sql_requests(sql_query=query)
-    print('РУЗУЛЬТАТ ИЗ БД', result)
     return result

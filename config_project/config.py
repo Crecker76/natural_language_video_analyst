@@ -83,9 +83,3 @@ class ConfigProject:
         except Exception:
             logger.exception(f'Ошибка предварительной проверки')
             return False
-
-
-if '__main__' == __name__:
-    obj = ConfigProject()
-    obj.check_db_and_tables()
-
